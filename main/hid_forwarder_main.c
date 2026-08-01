@@ -75,22 +75,22 @@ void app_main(void)
         nvs_ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(nvs_ret);
-    ESP_ERROR_CHECK(bsp_spiffs_mount());
-    app_state_init();
-    esp_err_t display_err = display_ui_init();
-    bool display_enabled = (display_err == ESP_OK);
-    if (display_err == ESP_ERR_NO_MEM) {
-        ESP_LOGW(TAG, "Display UI disabled (not enough memory)");
-    } else {
-        ESP_ERROR_CHECK(display_err);
+    esp_err_t spiffs_err = bsp_spiffs_mount();
+    if (spiffs_err != ESP_OK) {
+        ESP_LOGW(TAG, "SPIFFS mount failed (%s), display unavailable", esp_err_to_name(spiffs_err));
     }
+    app_state_init();
+    // Skip display init — Waveshare MIPI DSI display not present on this board.
+    // Calling display_ui_init() would hang the watchdog waiting for ST7703.
+    bool display_enabled = false;
+    ESP_LOGI(TAG, "Display UI skipped (no Waveshare panel)");
     ESP_ERROR_CHECK(usb_hs_device_init());
     ESP_ERROR_CHECK(protocol_tlv_init(handle_protocol_event));
     ESP_ERROR_CHECK(network_transport_start(protocol_tlv_receive_frame));
     ESP_ERROR_CHECK(serial_transport_start(protocol_tlv_receive_frame));
     ESP_ERROR_CHECK(uart_transport_start(protocol_tlv_receive_frame));
 
-    xTaskCreatePinnedToCore(core_service_task, "core_service", 4096, NULL, 5, NULL, 1);
+    xTaskCreatePinnedToCore(core_service_task, "core_service", 4096, NULL, 6, NULL, 0);
     if (display_enabled) {
         xTaskCreatePinnedToCore(display_task, "display", 4096, NULL, 1, NULL, tskNO_AFFINITY);
     }
